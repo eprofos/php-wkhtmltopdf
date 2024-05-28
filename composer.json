@@ -17,6 +17,11 @@
             "Eprofos\\PhpWkhtmltopdf\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Eprofos\\PhpWkhtmltopdf\\Tests\\": "tests/"
+        }
+    },
     "authors": [
         {
             "name": "Houssem TAYECH",
