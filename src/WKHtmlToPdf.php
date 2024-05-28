@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Eprofos\PhpWkhtmltopdf;
 
 use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfExecutionException;
+use Eprofos\PhpWkhtmltopdf\Types\PageOption;
 use Symfony\Component\Process\Process;
 
 class WKHtmlToPdf
@@ -136,16 +137,96 @@ class WKHtmlToPdf
     }
 
     /**
-     * Sets the footer HTML and additional options for the PDF.
+     * Sets the footer HTML content for specified pages in the PDF document.
      *
-     * @param string $html The HTML content for the footer.
-     * @param array $options Additional options for the PDF.
+     * @param string $html The HTML content to be used as the footer.
+     * @param array $options Additional options for the footer.
+     * @param PageOption $pageOption Specifies on which pages the footer should be applied. Options are:
+     *                               - PageOption::ALL: Applies the footer to all pages (default).
+     *                               - PageOption::EVEN: Applies the footer to even-numbered pages.
+     *                               - PageOption::ODD: Applies the footer to odd-numbered pages.
+     *                               - PageOption::FIRST: Applies the footer to the first page.
+     *                               - PageOption::LAST: Applies the footer to the last page.
+     * @param array $excludePages An array of pages to exclude from having the footer. The elements can be:
+     *                            - Integer: The page number to exclude.
+     *                            - PageOption: A PageOption enum value to exclude pages matching the criteria.
      *
-     * @return self Returns an instance of the WKHtmlToPdf class.
+     * @return self Returns the current instance of the WKHtmlToPdf class.
      */
-    public function setFooter(string $html, array $options = []): self
+    public function setFooter(string $html, array $options = [], PageOption $pageOption = PageOption::ALL, array $excludePages = []): self
     {
-        $this->setOption('footer-html', $html);
+        foreach ($this->pages as $index => $page) {
+            $pageIndex = $index + 1;
+            $exclude = false;
+
+            foreach ($excludePages as $excludePage) {
+                if (is_int($excludePage) && $pageIndex == $excludePage) {
+                    $exclude = true;
+                    break;
+                } elseif ($excludePage instanceof PageOption) {
+                    switch ($excludePage) {
+                        case PageOption::EVEN:
+                            if ($pageIndex % 2 == 0) {
+                                $exclude = true;
+                            }
+                            break;
+                        case PageOption::ODD:
+                            if ($pageIndex % 2 != 0) {
+                                $exclude = true;
+                            }
+                            break;
+                        case PageOption::FIRST:
+                            if ($pageIndex == 1) {
+                                $exclude = true;
+                            }
+                            break;
+                        case PageOption::LAST:
+                            if (is_array($this->pages) && $pageIndex == count($this->pages)) {
+                                $exclude = true;
+                            }
+                            break;
+                        case PageOption::ALL:
+                            $exclude = true;
+                            break;
+                    }
+                }
+            }
+
+            if (!$exclude) {
+                switch ($pageOption) {
+                    case PageOption::EVEN:
+                        if ($pageIndex % 2 == 0) {
+                            $this->pages[$index]['footer-html'] = $html;
+                            $this->pages[$index] = array_merge($this->pages[$index], $options);
+                        }
+                        break;
+                    case PageOption::ODD:
+                        if ($pageIndex % 2 != 0) {
+                            $this->pages[$index]['footer-html'] = $html;
+                            $this->pages[$index] = array_merge($this->pages[$index], $options);
+                        }
+                        break;
+                    case PageOption::FIRST:
+                        if ($pageIndex == 1) {
+                            $this->pages[$index]['footer-html'] = $html;
+                            $this->pages[$index] = array_merge($this->pages[$index], $options);
+                        }
+                        break;
+                    case PageOption::LAST:
+                        if (is_array($this->pages) && $pageIndex == count($this->pages)) {
+                            $this->pages[$index]['footer-html'] = $html;
+                            $this->pages[$index] = array_merge($this->pages[$index], $options);
+                        }
+                        break;
+                    case PageOption::ALL:
+                    default:
+                        $this->pages[$index]['footer-html'] = $html;
+                        $this->pages[$index] = array_merge($this->pages[$index], $options);
+                        break;
+                }
+            }
+        }
+
         $this->setOptions($options);
 
         return $this;
