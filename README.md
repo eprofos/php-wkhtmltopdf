@@ -1,4 +1,3 @@
-```markdown
 # PHP WKHtmlToPdf
 
 A PHP library for converting HTML to PDF using the `wkhtmltopdf` command-line tool with extensive customization options.
