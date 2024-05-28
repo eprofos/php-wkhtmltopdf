@@ -9,8 +9,9 @@ You can install the package via composer:
 ```bash
 composer require eprofos/php-wkhtmltopdf
 ```
+> [!CAUTION]
+> This package requires the `wkhtmltopdf` binary to be installed on your system. You can download it from the [official website](https://wkhtmltopdf.org/downloads.html) for your respective operating system.
 
-This package requires the `wkhtmltopdf` binary to be installed on your system. You can download it from the [official website](https://wkhtmltopdf.org/downloads.html) for your respective operating system.
 
 ## Usage
 
