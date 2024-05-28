@@ -1,145 +1,94 @@
-# PHP WKHtmlToPdf Library
+```markdown
+# PHP WKHtmlToPdf
 
-This library provides a PHP interface for generating PDF files using the `wkhtmltopdf` command-line tool.
+A PHP library for converting HTML to PDF using the `wkhtmltopdf` command-line tool with extensive customization options.
 
 ## Installation
 
-First, make sure you have `wkhtmltopdf` installed on your system. You can download it from [wkhtmltopdf.org](https://wkhtmltopdf.org/downloads.html).
-
-Then, you can install this library via Composer. Add the following to your `composer.json` file and run `composer install`:
-
-```json
-{
-    "require": {
-        "eprofos/php-wkhtmltopdf": "^1.0"
-    }
-}
-```
-Alternatively, you can run the following command to require the library:
+You can install the package via composer:
 
 ```bash
 composer require eprofos/php-wkhtmltopdf
 ```
+
+This package requires the `wkhtmltopdf` binary to be installed on your system. You can download it from the [official website](https://wkhtmltopdf.org/downloads.html) for your respective operating system.
+
 ## Usage
-### Basic Usage
-Here's a simple example of how to use the library to generate a PDF from an HTML string:
+
+Here's a basic example of how to use the library:
 
 ```php
-<?php
-
-require __DIR__ . '/vendor/autoload.php'; // Adjust the path as necessary
-
 use Eprofos\PhpWkhtmltopdf\WKHtmlToPdf;
 
-$htmlContent = <<<HTML
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Test Page</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-        h1 {
-            color: #2e6da4;
-        }
-        p {
-            font-size: 14px;
-        }
-    </style>
-</head>
-<body>
-    <h1>Welcome to the Test Page</h1>
-    <p>This is a test page for WKHtmlToPdf.</p>
-    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-</body>
-</html>
-HTML;
+$wkhtmltopdf = new WKHtmlToPdf('/path/to/wkhtmltopdf');
 
-$pdf = new WKHtmlToPdf();
-$pdf->addPage($htmlContent);
-$pdf->generate(__DIR__ . '/test.pdf'); // Adjust the output path as necessary
+$wkhtmltopdf->addPage('https://example.com')
+             ->setPageSize('A4')
+             ->setOrientation('Portrait')
+             ->setGrayscale(true)
+             ->setZoom(0.75)
+             ->generate('output.pdf');
 ```
-### Adding a Cover Page
-To add a cover page, you can use the addCover method:
+
+This will generate a PDF file named `output.pdf` from the HTML content of `https://example.com`, with the following options:
+
+- Page size: A4
+- Orientation: Portrait
+- Grayscale: Enabled
+- Zoom level: 75%
+
+## API Reference
+
+The `WKHtmlToPdf` class provides the following methods:
+
+### Constructor
 
 ```php
-<?php
-
-require __DIR__ . '/vendor/autoload.php'; // Adjust the path as necessary
-
-use Eprofos\PhpWkhtmltopdf\WKHtmlToPdf;
-
-$coverContent = <<<HTML
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Cover Page</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-        }
-        h1 {
-            color: #2e6da4;
-            margin-top: 50px;
-        }
-    </style>
-</head>
-<body>
-    <h1>Welcome to the Cover Page</h1>
-</body>
-</html>
-HTML;
-
-$pdf = new WKHtmlToPdf();
-$pdf->addCover($coverContent);
-$pdf->generate(__DIR__ . '/cover_test.pdf'); // Adjust the output path as necessary
+__construct(string $binary = '')
 ```
+
+The constructor accepts an optional `$binary` parameter, which is the path to the `wkhtmltopdf` binary. If not provided, the constructor will try to use the default paths (`C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe` on Windows and `/usr/local/bin/wkhtmltopdf` on other platforms).
+
+### Adding Pages
+
+```php
+addPage(string $content, array $options = []): self
+addCover(string $content, array $options = []): self
+addToc(array $options = []): self
+```
+
+- `addPage()` adds a page to the PDF document. The `$content` parameter can be either a URL or HTML content.
+- `addCover()` adds a cover page to the PDF document. The `$content` parameter can be either a URL or HTML content.
+- `addToc()` adds a table of contents (TOC) page to the PDF document.
+
 ### Setting Options
-You can set various options for wkhtmltopdf:
 
 ```php
-<?php
-
-require __DIR__ . '/vendor/autoload.php'; // Adjust the path as necessary
-
-use Eprofos\PhpWkhtmltopdf\WKHtmlToPdf;
-
-$pdf = new WKHtmlToPdf();
-$pdf->setOption('margin-top', '10mm');
-$pdf->setOption('margin-bottom', '10mm');
-$pdf->setOption('orientation', 'Landscape');
-
-$htmlContent = "<html><body><h1>Content with margins and landscape orientation</h1></body></html>";
-$pdf->addPage($htmlContent);
-$pdf->generate(__DIR__ . '/options_test.pdf'); // Adjust the output path as necessary
+setOption(string $name, ?string $value = null): self
+setOptions(array $options): self
+setHeader(string $html, array $options = []): self
+setFooter(string $html, array $options = []): self
+setMargins(string $top, string $right, string $bottom, string $left): self
+setOrientation(string $orientation): self
+setPageSize(string $size): self
+setZoom(float $zoom): self
+setDpi(int $dpi): self
+setGrayscale(bool $grayscale = false): self
+setLowQuality(bool $lowQuality = true): self
 ```
-### Full Example
-Here's a complete example that includes setting options, adding a cover, and generating a PDF:
+
+These methods allow you to set various options for the PDF generation process, such as headers, footers, margins, orientation, page size, zoom level, DPI, grayscale mode, and low-quality mode.
+
+### Generating the PDF
 
 ```php
-<?php
-
-require __DIR__ . '/vendor/autoload.php'; // Adjust the path as necessary
-
-use Eprofos\PhpWkhtmltopdf\WKHtmlToPdf;
-
-$pdf = new WKHtmlToPdf();
-$pdf->setOption('margin-top', '10mm');
-$pdf->setOption('margin-bottom', '10mm');
-$pdf->setOption('orientation', 'Landscape');
-
-$coverContent = "<html><body><h1>Cover Page</h1></body></html>";
-$pdf->addCover($coverContent);
-
-$htmlContent = "<html><body><h1>Content Page</h1></body></html>";
-$pdf->addPage($htmlContent);
-
-$pdf->generate(__DIR__ . '/full_example.pdf'); // Adjust the output path as necessary
+generate(string $output): string
 ```
+
+The `generate()` method generates the PDF file with the specified output file path. It returns the output of the `wkhtmltopdf` command.
+
 ## License
-This library is licensed under the MIT License. See the [LICENSE](https://github.com/eprofos/php-wkhtmltopdf/issues) file for more details.
+This library is licensed under the MIT License. See the [LICENSE](https://github.com/eprofos/php-wkhtmltopdf/blob/main/LICENSE) file for more details.
 
 ## Contributing
 Contributions are welcome! Please submit pull requests or open issues to help improve this library.
