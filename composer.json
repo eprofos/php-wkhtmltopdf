@@ -1,0 +1,49 @@
+{
+    "name": "eprofos/php-wkhtmltopdf",
+    "version": "0.1.0",
+    "description": "A PHP library for converting HTML to PDF using wkhtmltopdf with extensive customization options.",
+    "type": "library",
+    "require": {
+        "php": ">=7.4",
+        "symfony/process": "5.4"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6",
+        "friendsofphp/php-cs-fixer": "^3.57"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Eprofos\\PhpWkhtmltopdf\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Houssem TAYECH",
+            "email": "houssem@eprofos.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "extra": {
+        "tags": ["pdf", "html", "conversion", "wkhtmltopdf", "php-library"]
+    },
+    "scripts": {
+        "test": "phpunit",
+        "fix": "php-cs-fixer fix"
+    },
+    "keywords": ["pdf", "html", "wkhtmltopdf", "php", "conversion"],
+    "support": {
+        "issues": "https://github.com/eprofos/php-wkhtmltopdf/issues",
+        "source": "https://github.com/eprofos/php-wkhtmltopdf"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/eprofos/php-wkhtmltopdf"
+        }
+    ]
+}
