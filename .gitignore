@@ -1,47 +1,21 @@
-### Composer ###
-composer.phar
+# Dependencies
 /vendor/
-
-### PHP-CS-Fixer ###
-# Covers PHP CS Fixer
-# Reference: https://cs.symfony.com/
-
-# Generated files
-.php-cs-fixer.cache
-
-# Local config See: https://cs.symfony.com/doc/config.html
-.php-cs-fixer.php
-
-### PHPUnit ###
-# Covers PHPUnit
-# Reference: https://phpunit.de/
-
-# Generated files
-.phpunit.result.cache
-.phpunit.cache
+composer.lock
 
 # PHPUnit
-/app/phpunit.xml
-/phpunit.xml
+.phpunit.cache/
+.phpunit.result.cache
+coverage/
 
-# Build data
-/build/
+# PHP CS Fixer
+.php-cs-fixer.cache
 
-### VisualStudioCode ###
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-!.vscode/*.code-snippets
+# IDE
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
 
-# Local History for Visual Studio Code
-.history/
-
-# Built Visual Studio Code Extensions
-*.vsix
-
-### VisualStudioCode Patch ###
-# Ignore all local history of files
-.history
-.ionide
+# OS
+.DS_Store
+Thumbs.db
