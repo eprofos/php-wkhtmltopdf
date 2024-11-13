@@ -6,7 +6,7 @@ namespace Eprofos\PhpWkhtmltopdf;
 
 use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfExecutionException;
 use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfInvalidArgumentException;
-use Eprofos\PhpWkhtmltopdf\Types\PageOption;
+use Eprofos\PhpWkhtmltoPdf\Types\PageOption;
 use Symfony\Component\Process\Process;
 
 class WKHtmlToPdf
@@ -22,11 +22,7 @@ class WKHtmlToPdf
     public function __construct(string $binary = '')
     {
         if (empty($binary)) {
-            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                $binary = 'C:\\Program Files\\wkhtmltopdf\\bin\\wkhtmltopdf.exe';
-            } else {
-                $binary = '/usr/local/bin/wkhtmltopdf';
-            }
+            $binary = $this->findWkhtmltopdfBinary();
         }
 
         $this->binary = str_replace('\\', '\\\\', $binary);
@@ -36,6 +32,49 @@ class WKHtmlToPdf
         $this->options = new WKHtmlToPdfOptions();
         $this->pages = new WKHtmlToPdfPages();
         $this->tempFiles = [];
+    }
+
+    /**
+     * Attempts to find the wkhtmltopdf binary in common locations.
+     *
+     * @return string Path to the wkhtmltopdf binary
+     *
+     * @throws WKHtmlToPdfExecutionException If binary cannot be found
+     */
+    private function findWkhtmltopdfBinary(): string
+    {
+        $possibleLocations = [
+            // Windows locations
+            'C:\\Program Files\\wkhtmltopdf\\bin\\wkhtmltopdf.exe',
+            'C:\\Program Files (x86)\\wkhtmltopdf\\bin\\wkhtmltopdf.exe',
+
+            // Unix-like system locations
+            '/usr/local/bin/wkhtmltopdf',
+            '/usr/bin/wkhtmltopdf',
+            '/opt/wkhtmltopdf/bin/wkhtmltopdf',
+            '/snap/bin/wkhtmltopdf'
+        ];
+
+        foreach ($possibleLocations as $location) {
+            if (file_exists($location) && is_executable($location)) {
+                return $location;
+            }
+        }
+
+        // If no binary found, try using `which` command on Unix-like systems
+        if (strtoupper(substr(PHP_OS, 0, 3)) !== 'WIN') {
+            $process = new Process(['which', 'wkhtmltopdf']);
+            $process->run();
+
+            if ($process->isSuccessful() && !empty(trim($process->getOutput()))) {
+                $binaryPath = trim($process->getOutput());
+                if (file_exists($binaryPath) && is_executable($binaryPath)) {
+                    return $binaryPath;
+                }
+            }
+        }
+
+        throw new WKHtmlToPdfExecutionException('WKHtmlToPdf binary not found. Please specify the binary path explicitly.');
     }
 
     public function __destruct()
