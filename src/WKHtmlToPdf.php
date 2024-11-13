@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Eprofos\PhpWkhtmltopdf;
 
 use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfExecutionException;
+use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfInvalidArgumentException;
 use Eprofos\PhpWkhtmltopdf\Types\PageOption;
 use Symfony\Component\Process\Process;
 
@@ -27,10 +28,47 @@ class WKHtmlToPdf
                 $binary = '/usr/local/bin/wkhtmltopdf';
             }
         }
-        $this->binary = '"' . str_replace('\\', '\\\\', $binary) . '"';
+
+        $this->binary = str_replace('\\', '\\\\', $binary);
+        $this->validateBinary($this->binary);
+        $this->binary = '"' . $this->binary . '"';
+
         $this->options = new WKHtmlToPdfOptions();
         $this->pages = new WKHtmlToPdfPages();
         $this->tempFiles = [];
+    }
+
+    public function __destruct()
+    {
+        $this->cleanUpTempFiles();
+    }
+
+    private function validateContent(string $content): void
+    {
+        if (empty($content)) {
+            throw new WKHtmlToPdfInvalidArgumentException('Content cannot be empty');
+        }
+    }
+
+    private function createTempFile(string $content, string $prefix): string
+    {
+        $filePath = tempnam(sys_get_temp_dir(), $prefix) . '.html';
+        if (file_put_contents($filePath, $content) === false) {
+            throw new WKHtmlToPdfExecutionException('Failed to create temporary file');
+        }
+        $this->tempFiles[] = $filePath;
+
+        return $filePath;
+    }
+
+    private function validateBinary(string $binary): void
+    {
+        if (!file_exists($binary)) {
+            throw new WKHtmlToPdfExecutionException("WKHtmlToPdf binary not found at: $binary");
+        }
+        if (!is_executable($binary)) {
+            throw new WKHtmlToPdfExecutionException("WKHtmlToPdf binary is not executable: $binary");
+        }
     }
 
     /**
@@ -125,12 +163,32 @@ class WKHtmlToPdf
      *
      * @param string $html The HTML content for the header.
      * @param array $options Additional options for the PDF.
+     * @param PageOption $pageOption Specifies on which pages the header should be applied. Options are:
+     *                               - PageOption::ALL: Applies the header to all pages (default).
+     *                               - PageOption::EVEN: Applies the header to even-numbered pages.
+     *                               - PageOption::ODD: Applies the header to odd-numbered pages.
+     *                               - PageOption::FIRST: Applies the header to the first page.
+     *                               - PageOption::LAST: Applies the header to the last page.
      *
      * @return self Returns an instance of the WKHtmlToPdf class.
      */
-    public function setHeader(string $html, array $options = []): self
+    public function setHeader(string $html, array $options = [], PageOption $pageOption = PageOption::ALL): self
     {
-        $this->setOption('header-html', $html);
+        $this->validateContent($html);
+
+        $prefix = match ($pageOption) {
+            PageOption::ALL => 'header-html',
+            PageOption::FIRST => 'header-html-first',
+            PageOption::LAST => 'header-html-last',
+            PageOption::EVEN => 'header-html-even',
+            PageOption::ODD => 'header-html-odd',
+        };
+
+        if (!filter_var($html, FILTER_VALIDATE_URL)) {
+            $html = $this->createTempFile($html, 'wkhtmltopdf_header_');
+        }
+
+        $this->setOption($prefix, $html);
         $this->setOptions($options);
 
         return $this;
@@ -147,86 +205,26 @@ class WKHtmlToPdf
      *                               - PageOption::ODD: Applies the footer to odd-numbered pages.
      *                               - PageOption::FIRST: Applies the footer to the first page.
      *                               - PageOption::LAST: Applies the footer to the last page.
-     * @param array $excludePages An array of pages to exclude from having the footer. The elements can be:
-     *                            - Integer: The page number to exclude.
-     *                            - PageOption: A PageOption enum value to exclude pages matching the criteria.
      *
      * @return self Returns the current instance of the WKHtmlToPdf class.
      */
-    public function setFooter(string $html, array $options = [], PageOption $pageOption = PageOption::ALL, array $excludePages = []): self
+    public function setFooter(string $content, array $options = [], PageOption $pageOption = PageOption::ALL): self
     {
-        foreach ($this->pages as $index => $page) {
-            $pageIndex = $index + 1;
-            $exclude = false;
+        $this->validateContent($content);
 
-            foreach ($excludePages as $excludePage) {
-                if (is_int($excludePage) && $pageIndex == $excludePage) {
-                    $exclude = true;
-                    break;
-                } elseif ($excludePage instanceof PageOption) {
-                    switch ($excludePage) {
-                        case PageOption::EVEN:
-                            if ($pageIndex % 2 == 0) {
-                                $exclude = true;
-                            }
-                            break;
-                        case PageOption::ODD:
-                            if ($pageIndex % 2 != 0) {
-                                $exclude = true;
-                            }
-                            break;
-                        case PageOption::FIRST:
-                            if ($pageIndex == 1) {
-                                $exclude = true;
-                            }
-                            break;
-                        case PageOption::LAST:
-                            if (is_array($this->pages) && $pageIndex == count($this->pages)) {
-                                $exclude = true;
-                            }
-                            break;
-                        case PageOption::ALL:
-                            $exclude = true;
-                            break;
-                    }
-                }
-            }
+        $prefix = match ($pageOption) {
+            PageOption::ALL => 'footer-html',
+            PageOption::FIRST => 'footer-html-first',
+            PageOption::LAST => 'footer-html-last',
+            PageOption::EVEN => 'footer-html-even',
+            PageOption::ODD => 'footer-html-odd',
+        };
 
-            if (!$exclude) {
-                switch ($pageOption) {
-                    case PageOption::EVEN:
-                        if ($pageIndex % 2 == 0) {
-                            $this->pages[$index]['footer-html'] = $html;
-                            $this->pages[$index] = array_merge($this->pages[$index], $options);
-                        }
-                        break;
-                    case PageOption::ODD:
-                        if ($pageIndex % 2 != 0) {
-                            $this->pages[$index]['footer-html'] = $html;
-                            $this->pages[$index] = array_merge($this->pages[$index], $options);
-                        }
-                        break;
-                    case PageOption::FIRST:
-                        if ($pageIndex == 1) {
-                            $this->pages[$index]['footer-html'] = $html;
-                            $this->pages[$index] = array_merge($this->pages[$index], $options);
-                        }
-                        break;
-                    case PageOption::LAST:
-                        if (is_array($this->pages) && $pageIndex == count($this->pages)) {
-                            $this->pages[$index]['footer-html'] = $html;
-                            $this->pages[$index] = array_merge($this->pages[$index], $options);
-                        }
-                        break;
-                    case PageOption::ALL:
-                    default:
-                        $this->pages[$index]['footer-html'] = $html;
-                        $this->pages[$index] = array_merge($this->pages[$index], $options);
-                        break;
-                }
-            }
+        if (!filter_var($content, FILTER_VALIDATE_URL)) {
+            $content = $this->createTempFile($content, 'wkhtmltopdf_footer_');
         }
 
+        $this->setOption($prefix, $content);
         $this->setOptions($options);
 
         return $this;
@@ -355,19 +353,29 @@ class WKHtmlToPdf
      */
     public function generate(string $output): string
     {
-        $command = $this->binary . ' ' . $this->options->getOptions() . ' ' . $this->pages->getPages() . ' ' . escapeshellarg($output);
-        $process = Process::fromShellCommandline($command);
-        $process->run();
-
-        if (!$process->isSuccessful()) {
-            $this->cleanUpTempFiles();
-            throw new WKHtmlToPdfExecutionException('Unable to generate PDF: ' . $process->getErrorOutput());
+        if (empty($output)) {
+            throw new WKHtmlToPdfInvalidArgumentException('Output path cannot be empty');
         }
 
-        $output = $process->getOutput();
-        $this->cleanUpTempFiles();
+        $outputDir = dirname($output);
+        if (!is_dir($outputDir) || !is_writable($outputDir)) {
+            throw new WKHtmlToPdfExecutionException("Output directory '$outputDir' is not writable");
+        }
 
-        return $output;
+        try {
+            $command = $this->binary . ' ' . $this->options->getOptions() . ' ' . $this->pages->getPages() . ' ' . escapeshellarg($output);
+            $process = Process::fromShellCommandline($command);
+            $process->setTimeout(300); // 5 minutes timeout
+            $process->run();
+
+            if (!$process->isSuccessful()) {
+                throw new WKHtmlToPdfExecutionException('Unable to generate PDF: ' . $process->getErrorOutput());
+            }
+
+            return $process->getOutput();
+        } finally {
+            $this->cleanUpTempFiles();
+        }
     }
 
     /**

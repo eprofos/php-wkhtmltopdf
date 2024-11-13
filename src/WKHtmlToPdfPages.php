@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Eprofos\PhpWkhtmltopdf;
 
+use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfInvalidArgumentException;
+
 class WKHtmlToPdfPages
 {
     private array $pages;
@@ -23,6 +25,7 @@ class WKHtmlToPdfPages
      */
     public function addPage(string $url, array $options = []): self
     {
+        $this->validateUrl($url);
         $this->pages[] = $this->buildPageOptions($url, $options);
 
         return $this;
@@ -38,6 +41,7 @@ class WKHtmlToPdfPages
      */
     public function addCover(string $url, array $options = []): self
     {
+        $this->validateUrl($url);
         $this->pages[] = 'cover ' . $this->buildPageOptions($url, $options);
 
         return $this;
@@ -102,5 +106,12 @@ class WKHtmlToPdfPages
     private function buildPageOptions(string $url, array $options): string
     {
         return escapeshellarg($url) . ' ' . $this->buildOptions($options);
+    }
+
+    private function validateUrl(string $url): void
+    {
+        if (empty($url)) {
+            throw new WKHtmlToPdfInvalidArgumentException('URL cannot be empty');
+        }
     }
 }

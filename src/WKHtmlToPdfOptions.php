@@ -4,9 +4,34 @@ declare(strict_types=1);
 
 namespace Eprofos\PhpWkhtmltopdf;
 
+use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfInvalidArgumentException;
+
 class WKHtmlToPdfOptions
 {
     private array $options;
+
+    private const VALID_OPTIONS = [
+        // Basic options
+        'page-size', 'orientation', 'dpi', 'zoom',
+        'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+        'grayscale', 'lowquality',
+
+        // Header options
+        'header-html', 'header-html-first', 'header-html-last',
+        'header-html-even', 'header-html-odd', 'header-spacing',
+
+        // Footer options
+        'footer-html', 'footer-html-first', 'footer-html-last',
+        'footer-html-even', 'footer-html-odd', 'footer-spacing',
+
+        // Other options
+        'title', 'copies', 'collate', 'outline', 'outline-depth',
+        'page-offset', 'javascript-delay', 'load-error-handling',
+        'load-media-error-handling', 'minimum-font-size',
+        'encoding', 'disable-smart-shrinking', 'enable-smart-shrinking',
+        'print-media-type', 'no-background', 'background',
+        'images', 'no-images'
+    ];
 
     public function __construct()
     {
@@ -23,10 +48,14 @@ class WKHtmlToPdfOptions
      */
     public function setOption(string $name, ?string $value = null): self
     {
+        // Remove '--' prefix if present for validation
+        $cleanName = ltrim($name, '-');
+        $this->validateOption($cleanName);
+
         if ($value !== null) {
-            $this->options[$name] = "--$name " . escapeshellarg($value);
+            $this->options[$cleanName] = "--$cleanName " . escapeshellarg($value);
         } else {
-            $this->options[$name] = "--$name";
+            $this->options[$cleanName] = "--$cleanName";
         }
 
         return $this;
@@ -81,5 +110,19 @@ class WKHtmlToPdfOptions
     public function getOptionsArray(): array
     {
         return $this->options;
+    }
+
+    private function validateOption(string $name): void
+    {
+        if (empty($name)) {
+            throw new WKHtmlToPdfInvalidArgumentException('Option name cannot be empty');
+        }
+
+        // Remove '--' prefix if present
+        $name = ltrim($name, '-');
+
+        if (!in_array($name, self::VALID_OPTIONS)) {
+            throw new WKHtmlToPdfInvalidArgumentException("Invalid option: $name");
+        }
     }
 }
