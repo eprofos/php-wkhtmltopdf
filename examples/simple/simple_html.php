@@ -1,11 +1,13 @@
 <?php
 
-require __DIR__ . '/../../vendor/autoload.php'; 
+// Include the autoload file to load dependencies
+require __DIR__ . '/../../vendor/autoload.php';
 
+// Use necessary classes from the Eprofos\PhpWkhtmltopdf namespace
 use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfException;
 use Eprofos\PhpWkhtmltopdf\WKHtmlToPdf;
 
-// Usage example:
+// Define HTML content for the first page
 $htmlContent1 = <<<HTML
 <!DOCTYPE html>
 <html>
@@ -31,6 +33,7 @@ $htmlContent1 = <<<HTML
 </html>
 HTML;
 
+// Define HTML content for the second page
 $htmlContent2 = <<<HTML
 <!DOCTYPE html>
 <html>
@@ -56,12 +59,17 @@ $htmlContent2 = <<<HTML
 </html>
 HTML;
 
+// Create a new instance of WKHtmlToPdf
 $pdf = new WKHtmlToPdf();
+
 try {
-    $pdf = new WKHtmlToPdf();
+    // Add the first HTML content as a page
     $pdf->addPage($htmlContent1);
+    // Add the second HTML content as a page
     $pdf->addPage($htmlContent2);
+    // Generate the PDF and save it to the specified directory
     $pdf->generate(__DIR__ . '/test.pdf');
 } catch (WKHtmlToPdfException $e) {
+    // Handle any exceptions that occur during the PDF generation
     echo 'An error occurred: ' . $e->getMessage();
 }
