@@ -76,6 +76,16 @@ class WKHtmlToPdf
             throw new WKHtmlToPdfExecutionException('No pages added to PDF');
         }
 
+        // Validate output file path
+        $outputDir = dirname($outputFile);
+        if (!is_dir($outputDir)) {
+            throw new WKHtmlToPdfExecutionException("Output directory does not exist: {$outputDir}");
+        }
+
+        if (!is_writable($outputDir)) {
+            throw new WKHtmlToPdfExecutionException("Output directory is not writable: {$outputDir}");
+        }
+
         // Prepare temporary directory for HTML files
         $tempDir = sys_get_temp_dir() . '/wkhtmltopdf_' . uniqid();
         $this->filesystem->mkdir($tempDir);
