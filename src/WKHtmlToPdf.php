@@ -7,14 +7,17 @@ namespace Eprofos\PhpWkhtmltopdf;
 use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfExecutionException;
 use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfInvalidArgumentException;
 use Eprofos\PhpWkhtmltopdf\Types\PageOption;
-use Symfony\Component\Process\Process;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\Process;
 
 class WKHtmlToPdf
 {
     private string $binaryPath;
+
     private array $options = [];
+
     private array $pages = [];
+
     private Filesystem $filesystem;
 
     public function __construct(string $binaryPath)
@@ -29,6 +32,7 @@ class WKHtmlToPdf
     public function addPage(string $content): self
     {
         $this->pages[] = $content;
+
         return $this;
     }
 
@@ -37,6 +41,7 @@ class WKHtmlToPdf
         try {
             $validPages = PageOption::validate($pages);
             $this->options['header-' . $validPages] = $header;
+
             return $this;
         } catch (\InvalidArgumentException $e) {
             throw new WKHtmlToPdfInvalidArgumentException($e->getMessage());
@@ -48,6 +53,7 @@ class WKHtmlToPdf
         try {
             $validPages = PageOption::validate($pages);
             $this->options['footer-' . $validPages] = $footer;
+
             return $this;
         } catch (\InvalidArgumentException $e) {
             throw new WKHtmlToPdfInvalidArgumentException($e->getMessage());
@@ -60,13 +66,14 @@ class WKHtmlToPdf
         $this->options['margin-right'] = $right;
         $this->options['margin-bottom'] = $bottom;
         $this->options['margin-left'] = $left;
+
         return $this;
     }
 
     public function generate(string $outputFile): string
     {
         if (empty($this->pages)) {
-            throw new WKHtmlToPdfExecutionException("No pages added to PDF");
+            throw new WKHtmlToPdfExecutionException('No pages added to PDF');
         }
 
         // Prepare temporary directory for HTML files
@@ -103,7 +110,7 @@ class WKHtmlToPdf
             // Check for errors
             if (!$process->isSuccessful()) {
                 throw new WKHtmlToPdfExecutionException(
-                    "PDF generation failed: " . $process->getErrorOutput()
+                    'PDF generation failed: ' . $process->getErrorOutput()
                 );
             }
 
