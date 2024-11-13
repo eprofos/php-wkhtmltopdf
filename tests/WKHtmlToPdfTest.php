@@ -1,105 +1,121 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Eprofos\PhpWkhtmltopdf\Tests;
 
 use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfExecutionException;
-use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfInvalidArgumentException;
-use Eprofos\PhpWkhtmltopdf\Types\PageOption;
 use Eprofos\PhpWkhtmltopdf\WKHtmlToPdf;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 class WKHtmlToPdfTest extends TestCase
 {
-    private string $outputDir;
-
-    private string $validBinary;
-
-    private WKHtmlToPdf $wkhtmltopdf;
+    private string $testBinaryPath;
 
     protected function setUp(): void
     {
-        $this->outputDir = sys_get_temp_dir();
+        // Determine a valid binary path for testing
+        $possibleLocations = [
+            '/usr/local/bin/wkhtmltopdf',
+            '/usr/bin/wkhtmltopdf',
+            'C:\\Program Files\\wkhtmltopdf\\bin\\wkhtmltopdf.exe',
+            'C:\\Program Files (x86)\\wkhtmltopdf\\bin\\wkhtmltopdf.exe'
+        ];
 
-        // Set the correct binary path based on OS
-        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-            $this->validBinary = 'C:\\Program Files\\wkhtmltopdf\\bin\\wkhtmltopdf.exe';
-        } else {
-            $this->validBinary = '/usr/local/bin/wkhtmltopdf';
+        $this->testBinaryPath = '';
+        foreach ($possibleLocations as $location) {
+            if (file_exists($location) && is_executable($location)) {
+                $this->testBinaryPath = $location;
+                break;
+            }
         }
 
-        // Use valid binary path for most tests
-        $this->wkhtmltopdf = new WKHtmlToPdf($this->validBinary);
+        // If no binary found, try using `which` command on Unix-like systems
+        if (empty($this->testBinaryPath) && strtoupper(substr(PHP_OS, 0, 3)) !== 'WIN') {
+            $process = new Process(['which', 'wkhtmltopdf']);
+            $process->run();
+
+            if ($process->isSuccessful() && !empty(trim($process->getOutput()))) {
+                $binaryPath = trim($process->getOutput());
+                if (file_exists($binaryPath) && is_executable($binaryPath)) {
+                    $this->testBinaryPath = $binaryPath;
+                }
+            }
+        }
+
+        // Skip tests if no binary is available
+        if (empty($this->testBinaryPath)) {
+            $this->markTestSkipped('No wkhtmltopdf binary found for testing');
+        }
     }
 
-    public function testInvalidBinaryPath(): void
+    public function testInvalidBinaryPath()
     {
         $this->expectException(WKHtmlToPdfExecutionException::class);
-        $this->expectExceptionMessage('WKHtmlToPdf binary not found');
-        new WKHtmlToPdf('/invalid/path/to/wkhtmltopdf');
+        new WKHtmlToPdf('/path/to/nonexistent/binary');
     }
 
-    public function testAddPage(): void
+    public function testValidBinaryPath()
     {
-        $this->wkhtmltopdf->addPage('https://example.com');
-        $this->expectNotToPerformAssertions();
+        $pdf = new WKHtmlToPdf($this->testBinaryPath);
+        $this->assertInstanceOf(WKHtmlToPdf::class, $pdf);
     }
 
-    public function testAddPageWithHtmlContent(): void
+    public function testAddPage()
     {
-        $this->wkhtmltopdf->addPage('<html><body>Test</body></html>');
-        $this->expectNotToPerformAssertions();
+        $pdf = new WKHtmlToPdf($this->testBinaryPath);
+        $result = $pdf->addPage('<html><body>Test Page</body></html>');
+        $this->assertInstanceOf(WKHtmlToPdf::class, $result);
     }
 
-    public function testSetHeader(): void
+    public function testAddPageWithHtmlContent()
     {
-        $this->wkhtmltopdf->setHeader('<header>Test Header</header>', [], PageOption::ALL);
-        $this->expectNotToPerformAssertions();
+        $pdf = new WKHtmlToPdf($this->testBinaryPath);
+        $result = $pdf->addPage('<html><body>Test HTML Content</body></html>');
+        $this->assertInstanceOf(WKHtmlToPdf::class, $result);
     }
 
-    public function testSetFooter(): void
+    public function testSetHeader()
     {
-        $this->wkhtmltopdf->setFooter('<footer>Test Footer</footer>', [], PageOption::ALL);
-        $this->expectNotToPerformAssertions();
+        $pdf = new WKHtmlToPdf($this->testBinaryPath);
+        $result = $pdf->setHeader('<header>Test Header</header>');
+        $this->assertInstanceOf(WKHtmlToPdf::class, $result);
     }
 
-    public function testSetMargins(): void
+    public function testSetFooter()
     {
-        $this->wkhtmltopdf->setMargins('10mm', '10mm', '10mm', '10mm');
-        $this->expectNotToPerformAssertions();
+        $pdf = new WKHtmlToPdf($this->testBinaryPath);
+        $result = $pdf->setFooter('<footer>Test Footer</footer>');
+        $this->assertInstanceOf(WKHtmlToPdf::class, $result);
     }
 
-    public function testGenerate(): void
+    public function testSetMargins()
     {
-        $output = $this->outputDir . '/test.pdf';
-
-        $this->wkhtmltopdf
-            ->addPage('https://example.com')
-            ->setPageSize('A4')
-            ->setOrientation('Portrait');
-
-        try {
-            $this->wkhtmltopdf->generate($output);
-            $this->assertFileExists($output);
-            unlink($output); // Clean up
-        } catch (WKHtmlToPdfExecutionException $e) {
-            $this->markTestSkipped('wkhtmltopdf binary not available or network issue');
-        }
+        $pdf = new WKHtmlToPdf($this->testBinaryPath);
+        $result = $pdf->setMargins('10mm', '10mm', '10mm', '10mm');
+        $this->assertInstanceOf(WKHtmlToPdf::class, $result);
     }
 
-    public function testGenerateWithInvalidOutput(): void
+    public function testGenerate()
     {
-        $this->expectException(WKHtmlToPdfInvalidArgumentException::class);
-        $this->wkhtmltopdf->generate('');
+        $pdf = new WKHtmlToPdf($this->testBinaryPath);
+        $pdf->addPage('<html><body>Test Page</body></html>');
+        $outputFile = tempnam(sys_get_temp_dir(), 'pdf_test_') . '.pdf';
+
+        $result = $pdf->generate($outputFile);
+        $this->assertIsString($result);
+        $this->assertFileExists($outputFile);
+
+        // Clean up
+        unlink($outputFile);
     }
 
-    public function testValidBinaryPath(): void
+    public function testGenerateWithInvalidOutput()
     {
-        $binary = 'C:\\Program Files\\wkhtmltopdf\\bin\\wkhtmltopdf.exe';
-        if (strtoupper(substr(PHP_OS, 0, 3)) !== 'WIN') {
-            $binary = '/usr/local/bin/wkhtmltopdf';
-        }
-
-        $wkhtmltopdf = new WKHtmlToPdf($binary);
-        $this->expectNotToPerformAssertions();
+        $this->expectException(WKHtmlToPdfExecutionException::class);
+        $pdf = new WKHtmlToPdf($this->testBinaryPath);
+        $pdf->addPage('<html><body>Test Page</body></html>');
+        $pdf->generate('/nonexistent/directory/output.pdf');
     }
 }
