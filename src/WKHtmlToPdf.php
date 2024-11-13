@@ -6,425 +6,114 @@ namespace Eprofos\PhpWkhtmltopdf;
 
 use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfExecutionException;
 use Eprofos\PhpWkhtmltopdf\Exception\WKHtmlToPdfInvalidArgumentException;
-use Eprofos\PhpWkhtmltoPdf\Types\PageOption;
+use Eprofos\PhpWkhtmltopdf\Types\PageOption;
 use Symfony\Component\Process\Process;
+use Symfony\Component\Filesystem\Filesystem;
 
 class WKHtmlToPdf
 {
-    private string $binary;
+    private string $binaryPath;
+    private array $options = [];
+    private array $pages = [];
+    private Filesystem $filesystem;
 
-    private WKHtmlToPdfOptions $options;
-
-    private WKHtmlToPdfPages $pages;
-
-    private array $tempFiles;
-
-    public function __construct(string $binary = '')
+    public function __construct(string $binaryPath)
     {
-        if (empty($binary)) {
-            $binary = $this->findWkhtmltopdfBinary();
+        if (!file_exists($binaryPath) || !is_executable($binaryPath)) {
+            throw new WKHtmlToPdfExecutionException("Invalid or non-executable binary path: {$binaryPath}");
         }
-
-        $this->binary = str_replace('\\', '\\\\', $binary);
-        $this->validateBinary($this->binary);
-        $this->binary = '"' . $this->binary . '"';
-
-        $this->options = new WKHtmlToPdfOptions();
-        $this->pages = new WKHtmlToPdfPages();
-        $this->tempFiles = [];
+        $this->binaryPath = $binaryPath;
+        $this->filesystem = new Filesystem();
     }
 
-    /**
-     * Attempts to find the wkhtmltopdf binary in common locations.
-     *
-     * @return string Path to the wkhtmltopdf binary
-     *
-     * @throws WKHtmlToPdfExecutionException If binary cannot be found
-     */
-    private function findWkhtmltopdfBinary(): string
+    public function addPage(string $content): self
     {
-        $possibleLocations = [
-            // Windows locations
-            'C:\\Program Files\\wkhtmltopdf\\bin\\wkhtmltopdf.exe',
-            'C:\\Program Files (x86)\\wkhtmltopdf\\bin\\wkhtmltopdf.exe',
-
-            // Unix-like system locations
-            '/usr/local/bin/wkhtmltopdf',
-            '/usr/bin/wkhtmltopdf',
-            '/opt/wkhtmltopdf/bin/wkhtmltopdf',
-            '/snap/bin/wkhtmltopdf'
-        ];
-
-        foreach ($possibleLocations as $location) {
-            if (file_exists($location) && is_executable($location)) {
-                return $location;
-            }
-        }
-
-        // If no binary found, try using `which` command on Unix-like systems
-        if (strtoupper(substr(PHP_OS, 0, 3)) !== 'WIN') {
-            $process = new Process(['which', 'wkhtmltopdf']);
-            $process->run();
-
-            if ($process->isSuccessful() && !empty(trim($process->getOutput()))) {
-                $binaryPath = trim($process->getOutput());
-                if (file_exists($binaryPath) && is_executable($binaryPath)) {
-                    return $binaryPath;
-                }
-            }
-        }
-
-        throw new WKHtmlToPdfExecutionException('WKHtmlToPdf binary not found. Please specify the binary path explicitly.');
-    }
-
-    public function __destruct()
-    {
-        $this->cleanUpTempFiles();
-    }
-
-    private function validateContent(string $content): void
-    {
-        if (empty($content)) {
-            throw new WKHtmlToPdfInvalidArgumentException('Content cannot be empty');
-        }
-    }
-
-    private function createTempFile(string $content, string $prefix): string
-    {
-        $filePath = tempnam(sys_get_temp_dir(), $prefix) . '.html';
-        if (file_put_contents($filePath, $content) === false) {
-            throw new WKHtmlToPdfExecutionException('Failed to create temporary file');
-        }
-        $this->tempFiles[] = $filePath;
-
-        return $filePath;
-    }
-
-    private function validateBinary(string $binary): void
-    {
-        if (!file_exists($binary)) {
-            throw new WKHtmlToPdfExecutionException("WKHtmlToPdf binary not found at: $binary");
-        }
-        if (!is_executable($binary)) {
-            throw new WKHtmlToPdfExecutionException("WKHtmlToPdf binary is not executable: $binary");
-        }
-    }
-
-    /**
-     * Sets an option for the WKHtmlToPdf instance.
-     *
-     * @param string $name The name of the option.
-     * @param string|null $value The value of the option. If null, the option will be unset.
-     *
-     * @return self Returns the current instance of WKHtmlToPdf.
-     */
-    public function setOption(string $name, ?string $value = null): self
-    {
-        $this->options->setOption($name, $value);
-
+        $this->pages[] = $content;
         return $this;
     }
 
-    /**
-     * Sets multiple options for the WKHtmlToPdf instance.
-     *
-     * @param array $options The options to set.
-     *
-     * @return self Returns the updated WKHtmlToPdf instance.
-     */
-    public function setOptions(array $options): self
+    public function setHeader(string $header, string $pages = 'all'): self
     {
-        $this->options->setOptions($options);
-
-        return $this;
-    }
-
-    /**
-     * Adds a page to the PDF document.
-     *
-     * @param string $content The URL or HTML content of the page to add.
-     * @param array $options Additional options for the page.
-     *
-     * @return self Returns the current instance of the WKHtmlToPdf class.
-     */
-    public function addPage(string $content, array $options = []): self
-    {
-        if (filter_var($content, FILTER_VALIDATE_URL)) {
-            $this->pages->addPage($content, $options);
-        } else {
-            $filePath = tempnam(sys_get_temp_dir(), 'wkhtmltopdf_') . '.html';
-            file_put_contents($filePath, $content);
-            $this->tempFiles[] = $filePath;
-            $this->pages->addPage($filePath, $options);
+        try {
+            $validPages = PageOption::validate($pages);
+            $this->options['header-' . $validPages] = $header;
+            return $this;
+        } catch (\InvalidArgumentException $e) {
+            throw new WKHtmlToPdfInvalidArgumentException($e->getMessage());
         }
-
-        return $this;
     }
 
-    /**
-     * Adds a cover page to the PDF document.
-     *
-     * @param string $content The URL or HTML content of the cover page.
-     * @param array $options An optional array of additional options for the cover page.
-     *
-     * @return self Returns the current instance of the WKHtmlToPdf class.
-     */
-    public function addCover(string $content, array $options = []): self
+    public function setFooter(string $footer, string $pages = 'all'): self
     {
-        if (filter_var($content, FILTER_VALIDATE_URL)) {
-            $this->pages->addCover($content, $options);
-        } else {
-            $filePath = tempnam(sys_get_temp_dir(), 'wkhtmltopdf_cover_') . '.html';
-            file_put_contents($filePath, $content);
-            $this->tempFiles[] = $filePath;
-            $this->pages->addCover($filePath, $options);
+        try {
+            $validPages = PageOption::validate($pages);
+            $this->options['footer-' . $validPages] = $footer;
+            return $this;
+        } catch (\InvalidArgumentException $e) {
+            throw new WKHtmlToPdfInvalidArgumentException($e->getMessage());
         }
-
-        return $this;
     }
 
-    /**
-     * Adds a table of contents (TOC) to the PDF document.
-     *
-     * @param array $options An array of options for the table of contents.
-     *
-     * @return self Returns an instance of the WKHtmlToPdf class.
-     */
-    public function addToc(array $options = []): self
-    {
-        $this->pages->addToc($options);
-
-        return $this;
-    }
-
-    /**
-     * Sets the header HTML and additional options for the PDF.
-     *
-     * @param string $html The HTML content for the header.
-     * @param array $options Additional options for the PDF.
-     * @param PageOption $pageOption Specifies on which pages the header should be applied. Options are:
-     *                               - PageOption::ALL: Applies the header to all pages (default).
-     *                               - PageOption::EVEN: Applies the header to even-numbered pages.
-     *                               - PageOption::ODD: Applies the header to odd-numbered pages.
-     *                               - PageOption::FIRST: Applies the header to the first page.
-     *                               - PageOption::LAST: Applies the header to the last page.
-     *
-     * @return self Returns an instance of the WKHtmlToPdf class.
-     */
-    public function setHeader(string $html, array $options = [], PageOption $pageOption = PageOption::ALL): self
-    {
-        $this->validateContent($html);
-
-        $prefix = match ($pageOption) {
-            PageOption::ALL => 'header-html',
-            PageOption::FIRST => 'header-html-first',
-            PageOption::LAST => 'header-html-last',
-            PageOption::EVEN => 'header-html-even',
-            PageOption::ODD => 'header-html-odd',
-        };
-
-        if (!filter_var($html, FILTER_VALIDATE_URL)) {
-            $html = $this->createTempFile($html, 'wkhtmltopdf_header_');
-        }
-
-        $this->setOption($prefix, $html);
-        $this->setOptions($options);
-
-        return $this;
-    }
-
-    /**
-     * Sets the footer HTML content for specified pages in the PDF document.
-     *
-     * @param string $html The HTML content to be used as the footer.
-     * @param array $options Additional options for the footer.
-     * @param PageOption $pageOption Specifies on which pages the footer should be applied. Options are:
-     *                               - PageOption::ALL: Applies the footer to all pages (default).
-     *                               - PageOption::EVEN: Applies the footer to even-numbered pages.
-     *                               - PageOption::ODD: Applies the footer to odd-numbered pages.
-     *                               - PageOption::FIRST: Applies the footer to the first page.
-     *                               - PageOption::LAST: Applies the footer to the last page.
-     *
-     * @return self Returns the current instance of the WKHtmlToPdf class.
-     */
-    public function setFooter(string $content, array $options = [], PageOption $pageOption = PageOption::ALL): self
-    {
-        $this->validateContent($content);
-
-        $prefix = match ($pageOption) {
-            PageOption::ALL => 'footer-html',
-            PageOption::FIRST => 'footer-html-first',
-            PageOption::LAST => 'footer-html-last',
-            PageOption::EVEN => 'footer-html-even',
-            PageOption::ODD => 'footer-html-odd',
-        };
-
-        if (!filter_var($content, FILTER_VALIDATE_URL)) {
-            $content = $this->createTempFile($content, 'wkhtmltopdf_footer_');
-        }
-
-        $this->setOption($prefix, $content);
-        $this->setOptions($options);
-
-        return $this;
-    }
-
-    /**
-     * Sets the margins for the PDF document.
-     *
-     * @param string $top The top margin value.
-     * @param string $right The right margin value.
-     * @param string $bottom The bottom margin value.
-     * @param string $left The left margin value.
-     *
-     * @return self Returns the current instance of the WKHtmlToPdf class.
-     */
     public function setMargins(string $top, string $right, string $bottom, string $left): self
     {
-        $this->setOption('margin-top', $top);
-        $this->setOption('margin-right', $right);
-        $this->setOption('margin-bottom', $bottom);
-        $this->setOption('margin-left', $left);
-
+        $this->options['margin-top'] = $top;
+        $this->options['margin-right'] = $right;
+        $this->options['margin-bottom'] = $bottom;
+        $this->options['margin-left'] = $left;
         return $this;
     }
 
-    /**
-     * Sets the orientation of the PDF document.
-     *
-     * @param string $orientation The orientation of the PDF document. Valid values are 'portrait' and 'landscape'.
-     *
-     * @return self Returns an instance of the WKHtmlToPdf class.
-     */
-    public function setOrientation(string $orientation): self
+    public function generate(string $outputFile): string
     {
-        $this->setOption('orientation', $orientation);
-
-        return $this;
-    }
-
-    /**
-     * Sets the page size for the PDF.
-     *
-     * @param string $size The page size to set.
-     *
-     * @return self Returns the current instance of the WKHtmlToPdf class.
-     */
-    public function setPageSize(string $size): self
-    {
-        $this->setOption('page-size', $size);
-
-        return $this;
-    }
-
-    /**
-     * Sets the zoom level for the PDF.
-     *
-     * @param float $zoom The zoom level to set.
-     *
-     * @return self Returns the current instance of the WKHtmlToPdf class.
-     */
-    public function setZoom(float $zoom): self
-    {
-        $this->setOption('zoom', (string)$zoom);
-
-        return $this;
-    }
-
-    /**
-     * Sets the DPI (dots per inch) for the PDF generation.
-     *
-     * @param int $dpi The DPI value to set.
-     *
-     * @return self Returns the current instance of the WKHtmlToPdf class.
-     */
-    public function setDpi(int $dpi): self
-    {
-        $this->setOption('dpi', (string)$dpi);
-
-        return $this;
-    }
-
-    /**
-     * Sets whether the PDF should be generated in grayscale or not.
-     *
-     * @param bool $grayscale Whether to generate the PDF in grayscale or not. Default is false.
-     *
-     * @return self Returns the current instance of the WKHtmlToPdf class.
-     */
-    public function setGrayscale(bool $grayscale = false): self
-    {
-        if ($grayscale) {
-            $this->setOption('grayscale');
-        } else {
-            $this->options->removeOption('grayscale');
+        if (empty($this->pages)) {
+            throw new WKHtmlToPdfExecutionException("No pages added to PDF");
         }
 
-        return $this;
-    }
-
-    /**
-     * Sets the low quality option for the PDF generation.
-     *
-     * @param bool $lowQuality Whether to enable low quality mode or not. Default is true.
-     *
-     * @return self Returns the current instance of the WKHtmlToPdf class.
-     */
-    public function setLowQuality(bool $lowQuality = true): self
-    {
-        if ($lowQuality) {
-            $this->setOption('lowquality');
-        } else {
-            $this->options->removeOption('lowquality');
-        }
-
-        return $this;
-    }
-
-    /**
-     * Generates a PDF using the specified output file path.
-     *
-     * @param string $output The output file path for the generated PDF.
-     *
-     * @return string The output of the PDF generation process.
-     *
-     * @throws WKHtmlToPdfExecutionException If the PDF generation process fails.
-     */
-    public function generate(string $output): string
-    {
-        if (empty($output)) {
-            throw new WKHtmlToPdfInvalidArgumentException('Output path cannot be empty');
-        }
-
-        $outputDir = dirname($output);
-        if (!is_dir($outputDir) || !is_writable($outputDir)) {
-            throw new WKHtmlToPdfExecutionException("Output directory '$outputDir' is not writable");
-        }
+        // Prepare temporary directory for HTML files
+        $tempDir = sys_get_temp_dir() . '/wkhtmltopdf_' . uniqid();
+        $this->filesystem->mkdir($tempDir);
 
         try {
-            $command = $this->binary . ' ' . $this->options->getOptions() . ' ' . $this->pages->getPages() . ' ' . escapeshellarg($output);
-            $process = Process::fromShellCommandline($command);
-            $process->setTimeout(300); // 5 minutes timeout
-            $process->run();
+            // Prepare command arguments
+            $args = [$this->binaryPath];
 
-            if (!$process->isSuccessful()) {
-                throw new WKHtmlToPdfExecutionException('Unable to generate PDF: ' . $process->getErrorOutput());
+            // Add options
+            foreach ($this->options as $key => $value) {
+                $args[] = "--{$key}";
+                $args[] = $value;
             }
 
-            return $process->getOutput();
-        } finally {
-            $this->cleanUpTempFiles();
-        }
-    }
+            // Add pages
+            $tempFiles = [];
+            foreach ($this->pages as $index => $page) {
+                $tempFile = $tempDir . "/page_{$index}.html";
+                file_put_contents($tempFile, $page);
+                $tempFiles[] = $tempFile;
+                $args[] = $tempFile;
+            }
 
-    /**
-     * Deletes temporary files created during the PDF generation process.
-     */
-    private function cleanUpTempFiles(): void
-    {
-        foreach ($this->tempFiles as $file) {
-            @unlink($file);
+            // Add output file
+            $args[] = $outputFile;
+
+            // Execute the command
+            $process = new Process($args);
+            $process->setTimeout(60); // Set a reasonable timeout
+            $process->run();
+
+            // Check for errors
+            if (!$process->isSuccessful()) {
+                throw new WKHtmlToPdfExecutionException(
+                    "PDF generation failed: " . $process->getErrorOutput()
+                );
+            }
+
+            return $outputFile;
+        } finally {
+            // Clean up temporary files and directory
+            foreach ($tempFiles ?? [] as $file) {
+                $this->filesystem->remove($file);
+            }
+            $this->filesystem->remove($tempDir);
         }
-        $this->tempFiles = [];
     }
 }
